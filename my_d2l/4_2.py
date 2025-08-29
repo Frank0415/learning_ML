@@ -24,8 +24,6 @@ def net(x):
     h = relu(torch.matmul(x, w1) + b1)
     return torch.matmul(h, w2) + b2
 
-
-
 loss_fn = nn.CrossEntropyLoss(reduction="none")
 
 batch_size, epochs, lr = 256, 10, 0.1
