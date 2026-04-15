@@ -1,0 +1,4 @@
+--cuda-path=/opt/cuda
+--cuda-gpu-arch=sm_52
+-L/opt/cuda/lib64
+-I/opt/cuda/include
