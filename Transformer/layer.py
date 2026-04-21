@@ -30,10 +30,11 @@ class SublayerConnection(nn.Module):
 class EncoderLayer(nn.Module):
     def __init__(self, size, attn, feed_forward, dropout):
         super().__init__()
+        self.size = size
         self.attn = attn
         self.feed_forward = feed_forward
-        self.sublayer = clone_layers(SublayerConnection(size,dropout),2)
-        
+        self.sublayer = clone_layers(SublayerConnection(size, dropout), 2)
+
     def forward(self, x, mask):
         x = self.sublayer[0](x, lambda x: self.attn(x,x,x,mask))
         return self.sublayer[1](x, self.feed_forward)
@@ -41,10 +42,11 @@ class EncoderLayer(nn.Module):
 class DecoderLayer(nn.Module):
     def __init__(self, size, maskattn, attn, feed_forward, dropout):
         super().__init__()
+        self.size = size
         self.maskattn = maskattn
         self.attn = attn
         self.feed_forward = feed_forward
-        self.sublayer = clone_layers(SublayerConnection(size, dropout),3)
+        self.sublayer = clone_layers(SublayerConnection(size, dropout), 3)
     
     def forward(self, x, encode, src_mask, tgt_mask):
         x = self.sublayer[0](x, lambda x:self.maskattn(x,x,x,tgt_mask))
@@ -56,3 +58,24 @@ def subsequent_mask(size):
     attn_shape = (1, size, size)
     subsequent_mask = torch.triu(torch.ones(attn_shape), diagonal=1).type(torch.uint8)
     return subsequent_mask == 0
+
+class PositionwiseFeedForward(nn.Module):
+    "Implements FFN equation."
+
+    def __init__(self, d_model, d_ff, dropout=0.1):
+        super(PositionwiseFeedForward, self).__init__()
+        self.w_1 = nn.Linear(d_model, d_ff)
+        self.w_2 = nn.Linear(d_ff, d_model)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, x):
+        return self.w_2(self.dropout(self.w_1(x).relu()))
+    
+class Embeddings(nn.Module):
+    def __init__(self, d_model, vocab):
+        super(Embeddings, self).__init__()
+        self.lut = nn.Embedding(vocab, d_model)
+        self.d_model = d_model
+
+    def forward(self, x):
+        return self.lut(x) * math.sqrt(self.d_model)
