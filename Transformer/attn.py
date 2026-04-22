@@ -32,7 +32,7 @@ class MultiHeadAttn(nn.Module):
 
         # 1) Do all the linear projections in batch from d_model => h x d_k
         q, k, v = [
-            lin(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
+            lin(x).view(nbatches, -1, self.head, self.d_k).transpose(1, 2)
             for lin, x in zip(self.linears, (q, k, v))
         ]
 
@@ -40,7 +40,7 @@ class MultiHeadAttn(nn.Module):
         x, self.attn = attention(q, k, v, mask=mask, dropout=self.dropout)
 
         # 3) Concat using a view and apply a final linear.
-        x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.h * self.d_k)
+        x = x.transpose(1, 2).contiguous().view(nbatches, -1, self.head * self.d_k)
         del q
         del k
         del v
