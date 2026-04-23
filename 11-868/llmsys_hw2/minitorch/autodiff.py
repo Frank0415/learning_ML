@@ -107,8 +107,21 @@ def topological_sort(variable: Variable) -> Iterable[Variable]:
     """
     # BEGIN ASSIGN2_1
     # TODO
+    visited = set()
+    result = []
+
+    def dfs(node: Variable):
+        if node.unique_id in visited or node.is_constant():
+            return
+        visited.add(node.unique_id)
+        for parent in node.parents:
+            dfs(parent)
+        result.append(node)
+
+    dfs(variable)
+    return list(reversed(result))
     
-    raise NotImplementedError("Task Autodiff Not Implemented Yet")
+    # raise NotImplementedError("Task Autodiff Not Implemented Yet")
     # END ASSIGN2_1
 
 
@@ -130,8 +143,25 @@ def backpropagate(variable: Variable, deriv: Any) -> None:
     """
     # BEGIN ASSIGN2_1
     # TODO
-   
-    raise NotImplementedError("Task Autodiff Not Implemented Yet")
+    nodes = topological_sort(variable)
+    accumulate_map = {variable.unique_id:deriv}
+    for node in nodes:
+        d_out = accumulate_map.get(node.unique_id,0.0)
+        if node.is_leaf():
+            node.accumulate_derivative(d_out)
+            continue
+        
+        contribs = node.chain_rule(d_out)
+        
+        for parent, local_grad in contribs:
+            if parent.is_constant():
+                continue
+            if parent.unique_id in accumulate_map:
+                accumulate_map[parent.unique_id] += local_grad
+            else:
+                accumulate_map[parent.unique_id] = local_grad
+        
+    # raise NotImplementedError("Task Autodiff Not Implemented Yet")
     # END ASSIGN2_1
 
 
