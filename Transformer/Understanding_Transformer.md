@@ -38,7 +38,10 @@ Transformer的核心是自注意力机制。我们通过三个线性层将输入
 
 最后，这个张量乘以一个输出权重矩阵 $W^O$（形状为 `d_model` × `d_model`），接着进行残差相加与层标准化（Layer Normalization）。
 
-注意：The annotated transformer是pre-norm结构，即在每个子层先进行层标准化，然后再加残差。原始论文确实是先加残差，但是pre-norm结构在训练过程中更稳定，尤其是当模型较深时。
+注意：The annotated transformer是pre-norm结构，即在每个子层先进行层标准化，然后再加残差。原始论文确实是先加残差，但是pre-norm结构在训练过程中更稳定，尤其是当模型较深时，可以使得梯度无损的传播到更早的层。
+
+pre-norm: $$x_{i+1} = x_i + Sublayer(LayerNorm(x_i))$$
+post-norm: $$x_{i+1} = LayerNorm(x_i + Sublayer(x_i))$$
 
 ## 前馈网络
 
