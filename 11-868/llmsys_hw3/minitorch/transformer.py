@@ -148,6 +148,7 @@ class MultiHeadAttention(Module):
         ### BEGIN ASSIGN3_3
         q, kT, v = self.project_to_query_key_value(x)
         o = self.self_attention(q, kT, v)
+        o = self.dropout(o)
         o = o.permute(0, 2, 1, 3).contiguous().view(batch_size, seq_len, n_embd)
         return self.out_projection(o.view(batch_size * seq_len, n_embd)).view(batch_size, seq_len, n_embd)
         ### END ASSIGN3_3
@@ -207,6 +208,7 @@ class FeedForward(Module):
 class TransformerLayer(Module):
     def __init__(
         self,
+        
         n_embd: int,
         n_head: int,
         p_dropout: float = 0.1,
