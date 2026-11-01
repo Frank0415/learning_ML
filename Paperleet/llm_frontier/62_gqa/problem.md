@@ -1,0 +1,48 @@
+# GQA 分组注意力与 KV 头转换
+
+GQA 让一组 query 头共享一个 key/value 头，连接 MHA 与 MQA 两个端点。论文的检查点转换先对组内 KV 投影取均值，之后还需要继续训练。阅读 [GQA，EMNLP 2023 的 §2.1–2.2 和图 1–2](https://aclanthology.org/2023.emnlp-main.298.pdf)。本题只实现分组计算与转换，不下载模型，也不复现上训练。
+
+## 本模块的目标
+
+### 返回值要求
+
+#### `mean_pool_kv_heads` — 需要实现
+
+返回一个浮点 Tensor `[G,D_model,D_head]`；G=num_kv_heads，D_model 为投影输入宽度，D_head 为单头输出宽度。每个输出头是 weight `[H,D_model,D_head]` 中连续 H/G 个原始头的均值，保留组顺序。保持 weight 的 dtype/device 及所有原始头的梯度，不修改 weight。
+
+#### `grouped_query_attention` — 需要实现
+
+返回浮点 Tensor 元组 `(output, weights)`，形状为 `[B,H,Q,Dv]`、`[B,H,Q,K]`；即使 K/V 只有 G 个头，输出仍保留全部 H 个查询头。B 为批大小，Q/K 为查询/键长度，Dv 为值向量宽度。权重沿键归一化；全遮挡行的权重、输出和梯度为有限零。保持 dtype/device 和 q/k/v 梯度，共享 KV 头的梯度需累计各查询头贡献。空查询保留长度为 0 的 Q 轴，不修改输入。
+
+### 公式与约定
+
+实现 `mean_pool_kv_heads` 和 `grouped_query_attention`。建议先完成缩放点积注意力，再处理共享头的映射和梯度。
+
+| 输入与输出 | 约定 |
+| --- | --- |
+| `q` | `[B,H,Q,D]`，H 个 query 头 |
+| `k`, `v` | `[B,G,K,D]`、`[B,G,K,Dv]`，G 个 KV 头 |
+| `output`, `weights` | `[B,H,Q,Dv]`、`[B,H,Q,K]` |
+| `weight` | `[H,D_model,D_head]` 的单个 K 或 V 投影；输出 `[G,D_model,D_head]` |
+| 分组 | H、G 为正数，H 能被 G 整除；每组连续排列 |
+| mask | 可选布尔张量，广播到 `[B,H,Q,K]`；True 代表可见 |
+
+所有张量是有限的 float32 或 float64 CPU 数据。保留精度，不修改输入。K 至少为 1，Q 可以为 0，Q 与 K 不要求相等。每头的 key 维度 D 与 value 维度 Dv 可以不同。
+
+## 组内转换
+
+令 $r=H/G$。对输入的 K 投影或 V 投影分别做：
+
+$$\overline W_g=\frac{1}{r}\sum_{j=0}^{r-1}W_{gr+j}.$$
+
+只平均 head 轴，不平均特征轴。`G` 必须是 Python 正整数，且整除 H；非法组数抛出 `ValueError`。例如 H=4、G=2 时，四个标量投影 `[0,2,10,14]` 变为 `[1,12]`。G=H 保持原投影；G=1 合并成一个 KV 头。
+
+## 连续共享 KV
+
+query 头 h 使用 KV 头 $g(h)=\lfloor h/r\rfloor$。H=4、G=2 的映射是 `[0,0,1,1]`，不是 `[0,1,0,1]`。按每头特征维度缩放：
+
+$$A_h=\operatorname{softmax}_{keys}\left(Q_h K_{g(h)}^\top/\sqrt D+M_h\right),\qquad O_h=A_hV_{g(h)}.$$
+
+返回输出和注意力权重。完全不可见的一行返回精确的零，梯度有限且为零；这是本练习明确规定的 padding 行为。因果关系由调用方显式传入 mask，不暗含自回归对齐规则。未支持的头数或维度组合应抛出 `ValueError`。
+
+共享不等于停止梯度：一个 KV 头接收组内所有 query 头的梯度总和；均值池化则把输出梯度按 r 等分回原来的投影头。可以用可微的展开、索引或循环实现，不要求特定内核。
